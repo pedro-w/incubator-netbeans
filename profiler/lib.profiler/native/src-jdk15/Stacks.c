@@ -39,6 +39,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#include <stdint.h>
 
 #include "jni.h"
 #include "jvmti.h"
@@ -63,22 +64,22 @@ static jvmtiFrameInfo *_stack_frames_buffer = NULL;
 static jint *_stack_id_buffer = NULL;
 static jclass threadType = NULL;
 static jclass intArrType = NULL;
-static long base_addresses[NO_OF_BASE_ADDRESS]={-1L,-1L,-1L,-1L};
+static intptr_t base_addresses[NO_OF_BASE_ADDRESS]={-1L,-1L,-1L,-1L};
 
 static jint convert_jmethodID_to_jint(jmethodID jmethod) {
     if (NEEDS_CONVERSION) {
-        long base_address=(long)jmethod&BASE_ADDRESS_MASK;
+        intptr_t base_address=(intptr_t)jmethod&BASE_ADDRESS_MASK;
         unsigned int i;
 
         for (i=0;i<NO_OF_BASE_ADDRESS;i++) {
-            long ba = base_addresses[i];
+            intptr_t ba = base_addresses[i];
 
             if (ba == -1L) {
                 base_addresses[i] = base_address;
                 //fprintf(stderr,"Profiler Agent: Registering new base %lx\n",base_address);
             }
             if (base_addresses[i]==base_address) {
-                jint offset = (long)jmethod&OFFSET_MASK;
+                jint offset = (jint) ((intptr_t)jmethod&OFFSET_MASK);
                 offset |= i<<NO_OF_MASK_BITS;
                 //fprintf(stderr,"M %p -> %x\n",jmethod,offset);
                 return offset;
@@ -87,21 +88,21 @@ static jint convert_jmethodID_to_jint(jmethodID jmethod) {
         fprintf(stderr,"Profiler Agent Warning: Cannot convert %p\n",jmethod);
         return 0;
     } else {
-        return (jint)jmethod;
+        return (jint)(intptr_t)jmethod;
     }
 }
 
 static jmethodID convert_jint_to_jmethodID(jint method) {
     if (NEEDS_CONVERSION) {
-        int offset = method&OFFSET_MASK;
-        int base_id = ((unsigned int)method)>>NO_OF_MASK_BITS;
+        intptr_t offset = method&OFFSET_MASK;
+        int base_id = (method>>NO_OF_MASK_BITS) & ((1<<NO_OF_BASE_BITS) - 1);
         jmethodID jmethod = (jmethodID)(base_addresses[base_id]|offset);
 
         //fprintf(stderr,"X %x -> %p\n",method,jmethod);
         //fflush(stderr);
         return jmethod;
     } else {
-        return (jmethodID)method;
+        return (jmethodID)(intptr_t)method;
     }
 }
 
