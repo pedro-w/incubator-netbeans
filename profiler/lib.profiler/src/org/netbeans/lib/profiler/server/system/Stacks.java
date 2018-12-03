@@ -50,7 +50,7 @@ public class Stacks {
      * @return A packed array of bytes of triplets [class name, method name, method signature], packedArrayOffsets
      *         contains indexes into this array for individual items
      */
-    public static native byte[] getMethodNamesForJMethodIds(int nMethods, int[] methodIds, int[] packedArrayOffsets);
+    public static native byte[] getMethodNamesForJMethodIds(int nMethods, long[] methodIds, int[] packedArrayOffsets);
 
     /**
      * Get information about the stacks of all live threads
@@ -58,7 +58,7 @@ public class Stacks {
      * @param states used to return thread's states
      * @param frames used to return jMethodIds of frames of all threads
      */
-    public static native void getAllStackTraces(Thread[][] threads, int[][] states, int[][][] frames);
+    public static native void getAllStackTraces(Thread[][] threads, int[][] states, long[][][] frames);
     
     /** Clear the above stack frame buffer permanently. */
     public static native void clearNativeStackFrameBuffer();

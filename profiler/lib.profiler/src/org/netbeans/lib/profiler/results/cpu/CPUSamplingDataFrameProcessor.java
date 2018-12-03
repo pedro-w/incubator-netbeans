@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import org.netbeans.lib.profiler.ProfilerClient;
 import org.netbeans.lib.profiler.ProfilerLogger;
@@ -96,25 +97,27 @@ public class CPUSamplingDataFrameProcessor extends AbstractLockDataFrameProcesso
                     break;
                 }
                 case CommonConstants.THREAD_INFO_IDENTICAL: {
-                    int threadId = buffer.getChar();
-                    Integer threadIdObj = Integer.valueOf(threadId);
-                    ThreadInfo lastInfo = lastThreadsDump.get(threadIdObj);
+                    final int threadId = buffer.getChar();
+                    ThreadInfo lastInfo = lastThreadsDump.get(threadId);
                     assert lastInfo != null;
-                    currentThreadsDump.put(threadIdObj,lastInfo);
-                    if (LOGGER.isLoggable(Level.FINEST)) {
-                        LOGGER.finest("Thread info identical: tId:"+threadId); // NOI18N
-                    }
+                    currentThreadsDump.put(threadId,lastInfo);
+                    LOGGER.finest(new Supplier<String>() {
+                        @Override
+                        public String get() {
+                            return "Thread info identical: tId:" + threadId; // NOI18N
+                        }
+                    });
                     break;
                 }
                 case CommonConstants.THREAD_INFO: {
                     int threadId = buffer.getChar();
                     byte state = buffer.get();
                     int stackLen = buffer.getChar();
-                    int methodIds[] = new int[stackLen];
+                    long methodIds[] = new long[stackLen];
                     ThreadInfo info;
                     
                     for (int i=0; i<stackLen; i++) {
-                        methodIds[i] = buffer.getInt();
+                        methodIds[i] = buffer.getLong();
                         methodIdsTable.checkMethodId(methodIds[i]);
                     }
                     if (currentThreadId == threadId) {
@@ -248,7 +251,7 @@ public class CPUSamplingDataFrameProcessor extends AbstractLockDataFrameProcesso
     }
 
     private void processCollectedDumps(JMethodIdTable methodIdTable, List<ThreadDump> threadDumps) {
-        Map<Integer,StackTraceElement> stackTraceElements = new HashMap();
+        Map<Long,StackTraceElement> stackTraceElements = new HashMap();
         InstrumentationFilter filter = builder.getFilter();
         
         for (ThreadDump td : threadDumps) {
@@ -256,12 +259,12 @@ public class CPUSamplingDataFrameProcessor extends AbstractLockDataFrameProcesso
             int tindex = 0;
             
             for (ThreadInfo ti : td.threadDumps) {
-                int[] methodIds = ti.methodsIds;
+                long[] methodIds = ti.methodsIds;
                 StackTraceElement[] stackTrace = new StackTraceElement[methodIds.length];
 
                 for (int i=0; i<methodIds.length; i++) {
-                    int methodId = methodIds[i];
-                    StackTraceElement el = stackTraceElements.get(Integer.valueOf(methodId));
+                    long methodId = methodIds[i];
+                    StackTraceElement el = stackTraceElements.get(Long.valueOf(methodId));
                     
                     if (el == null) {
                         JMethodIdTableEntry entry = methodIdTable.getEntry(methodId);
@@ -269,7 +272,7 @@ public class CPUSamplingDataFrameProcessor extends AbstractLockDataFrameProcesso
                         String className = entry.className.replace('/','.'); // NOI18N
                         String methodName = method+StackTraceSnapshotBuilder.NAME_SIG_SPLITTER+entry.methodSig;
                         el = new StackTraceElement(className, methodName, null, entry.isNative?-2:-1);
-                        stackTraceElements.put(Integer.valueOf(methodId),el);
+                        stackTraceElements.put(Long.valueOf(methodId),el);
                     }
                     stackTrace[i] = el;
                 }
@@ -280,12 +283,12 @@ public class CPUSamplingDataFrameProcessor extends AbstractLockDataFrameProcesso
     }
     
     private static final class ThreadInfo {
-        private int[] methodsIds;
+        private long[] methodsIds;
         private Thread.State state;
         private String threadName;
         private long threadId;
  
-        ThreadInfo(String tn, long tid, byte ts, int[] st) {
+        ThreadInfo(String tn, long tid, byte ts, long[] st) {
             threadName = tn;
             threadId = tid;
             state = getThreadState(ts);

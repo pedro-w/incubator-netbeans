@@ -390,7 +390,7 @@ public class ProfilerInterface implements CommonConstants {
         }
     }
 
-    public static MethodNamesResponse getMethodNamesForJMethodIds(int[] methodIds) {
+    public static MethodNamesResponse getMethodNamesForJMethodIds(long[] methodIds) {
         final int PACKEDARR_ITEMS = 4; // must match PACKEDARR_ITEMS in Stacks.c
         int nMethods = methodIds.length;
         int len = nMethods * PACKEDARR_ITEMS;

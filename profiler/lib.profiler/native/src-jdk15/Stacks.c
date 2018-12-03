@@ -48,61 +48,21 @@
 #include "common_functions.h"
 #include "Threads.h"
 
-#define NEEDS_CONVERSION (sizeof(jmethodID)!=sizeof(jint))
-#define NO_OF_BASE_BITS 2
-#define NO_OF_MASK_BITS (32-NO_OF_BASE_BITS)
-#define NO_OF_BASE_ADDRESS (1<<NO_OF_BASE_BITS)
-#define OFFSET_MASK ((1L<<NO_OF_MASK_BITS)-1)
-#define BASE_ADDRESS_MASK (~OFFSET_MASK)
-
 #define MAX_FRAMES 16384
 
 #define PACKEDARR_ITEMS 4
 
 static jvmtiFrameInfo *_stack_frames_buffer = NULL;
-static jint *_stack_id_buffer = NULL;
+static jlong *_stack_id_buffer = NULL;
 static jclass threadType = NULL;
-static jclass intArrType = NULL;
-static long base_addresses[NO_OF_BASE_ADDRESS]={-1L,-1L,-1L,-1L};
+static jclass longArrType = NULL;
 
-static jint convert_jmethodID_to_jint(jmethodID jmethod) {
-    if (NEEDS_CONVERSION) {
-        long base_address=(long)jmethod&BASE_ADDRESS_MASK;
-        unsigned int i;
-
-        for (i=0;i<NO_OF_BASE_ADDRESS;i++) {
-            long ba = base_addresses[i];
-
-            if (ba == -1L) {
-                base_addresses[i] = base_address;
-                //fprintf(stderr,"Profiler Agent: Registering new base %lx\n",base_address);
-            }
-            if (base_addresses[i]==base_address) {
-                jint offset = (long)jmethod&OFFSET_MASK;
-                offset |= i<<NO_OF_MASK_BITS;
-                //fprintf(stderr,"M %p -> %x\n",jmethod,offset);
-                return offset;
-            }
-        }
-        fprintf(stderr,"Profiler Agent Warning: Cannot convert %p\n",jmethod);
-        return 0;
-    } else {
-        return (jint)jmethod;
-    }
+static jlong convert_jmethodID_to_jlong(jmethodID jmethod) {
+    return (jlong) jmethod;
 }
 
-static jmethodID convert_jint_to_jmethodID(jint method) {
-    if (NEEDS_CONVERSION) {
-        int offset = method&OFFSET_MASK;
-        int base_id = ((unsigned int)method)>>NO_OF_MASK_BITS;
-        jmethodID jmethod = (jmethodID)(base_addresses[base_id]|offset);
-
-        //fprintf(stderr,"X %x -> %p\n",method,jmethod);
-        //fflush(stderr);
-        return jmethod;
-    } else {
+static jmethodID convert_jlong_to_jmethodID(jlong method) {
         return (jmethodID)method;
-    }
 }
 
 /*
@@ -132,7 +92,7 @@ JNIEXPORT void JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_creat
         Java_org_netbeans_lib_profiler_server_system_Stacks_clearNativeStackFrameBuffer(env, clz);
     }
     _stack_frames_buffer = calloc(sizeInFrames, sizeof(jvmtiFrameInfo));
-    _stack_id_buffer = calloc(sizeInFrames, sizeof(jint));
+    _stack_id_buffer = calloc(sizeInFrames, sizeof(jlong));
 }
 
 
@@ -172,9 +132,9 @@ JNIEXPORT jint JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_getCu
     (*_jvmti)->GetStackTrace(_jvmti, jni_thread, 0, depth, _stack_frames_buffer, &count);
 
     for (i = 0; i < count; i++) {
-        _stack_id_buffer[i] = convert_jmethodID_to_jint(_stack_frames_buffer[i].method);
+        _stack_id_buffer[i] = convert_jmethodID_to_jlong(_stack_frames_buffer[i].method);
     }
-    (*env)->SetIntArrayRegion(env, ret, 0, count, _stack_id_buffer);
+    (*env)->SetLongArrayRegion(env, ret, 0, count, _stack_id_buffer);
 
     return count;
 }
@@ -215,19 +175,19 @@ static void copy_dummy_names_into_data_array() {
 /*
  * Class:     org_netbeans_lib_profiler_server_system_Stacks
  * Method:    getMethodNamesForJMethodIds
- * Signature: (I[I[I)[B
+ * Signature: (I[J[I)[B
  */
 JNIEXPORT jbyteArray JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_getMethodNamesForJMethodIds
-  (JNIEnv *env, jclass clz, jint nMethods, jintArray jmethodIds, jintArray packedArrayOffsets)
+  (JNIEnv *env, jclass clz, jint nMethods, jlongArray jmethodIds, jintArray packedArrayOffsets)
 {
     jvmtiError res;
     int i, len;
-    jint *methodIds;
+    jlong *methodIds;
     jbyteArray ret;
 
     // fprintf (stderr, "1");
-    methodIds = (jint*) malloc(sizeof(jint) * nMethods);
-    (*env)->GetIntArrayRegion(env, jmethodIds, 0, nMethods, methodIds);
+    methodIds = (jlong*) malloc(sizeof(jlong) * nMethods);
+    (*env)->GetLongArrayRegion(env, jmethodIds, 0, nMethods, methodIds);
     strOffsets = (jint*) malloc(sizeof(jint) * nMethods * PACKEDARR_ITEMS);
     byteDataLen = nMethods * PACKEDARR_ITEMS * 10;  /* The initial size for the packed strings array */
     byteData = (jbyte*) malloc(byteDataLen);
@@ -239,7 +199,7 @@ JNIEXPORT jbyteArray JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks
         jclass declaringClass;
         char *className, *genericSignature, *methodName, *methodSig, *genericMethodSig;
         jboolean native = JNI_FALSE;
-        jmethodID methodID = convert_jint_to_jmethodID(methodIds[i]);
+        jmethodID methodID = convert_jlong_to_jmethodID(methodIds[i]);
 
         //fprintf (stderr, "Going to call GetMethodDeclaringClass for methodId = %d\n", *(int*)methodID);
 
@@ -330,7 +290,7 @@ JNIEXPORT jbyteArray JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks
 /*
  * Class:     org_netbeans_lib_profiler_server_system_Stacks
  * Method:    getAllStackTraces
- * Signature: ([[Ljava/lang/Thread;[[I[[[I)V
+ * Signature: ([[Ljava/lang/Thread;[[I[[[J)V
  */
 JNIEXPORT void JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_getAllStackTraces
   (JNIEnv *env, jclass clz, jobjectArray threads, jobjectArray states, jobjectArray frames)
@@ -352,15 +312,15 @@ JNIEXPORT void JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_getAl
         threadType = (*env)->FindClass(env, "java/lang/Thread");
         threadType = (*env)->NewGlobalRef(env, threadType);
     }
-    if (intArrType == NULL) {
-        intArrType = (*env)->FindClass(env, "[I");
-        intArrType = (*env)->NewGlobalRef(env, intArrType);
+    if (longArrType == NULL) {
+        longArrType = (*env)->FindClass(env, "[J");
+        longArrType = (*env)->NewGlobalRef(env, longArrType);
     }
     jthreadArr = (*env)->NewObjectArray(env, thread_count, threadType, NULL);
     (*env)->SetObjectArrayElement(env, threads, 0, jthreadArr);
     statesArr = (*env)->NewIntArray(env, thread_count);
     (*env)->SetObjectArrayElement(env, states, 0, statesArr);
-    methodIdArrArr = (*env)->NewObjectArray(env, thread_count, intArrType, NULL);
+    methodIdArrArr = (*env)->NewObjectArray(env, thread_count, longArrType, NULL);
     (*env)->SetObjectArrayElement(env, frames, 0, methodIdArrArr);    
     state_buffer = calloc(thread_count, sizeof(jint));
     
@@ -370,19 +330,19 @@ JNIEXPORT void JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_getAl
        jint state = infop->state;
        jvmtiFrameInfo *frames = infop->frame_buffer;
        jobjectArray jmethodIdArr;
-       jint *id_buffer;
+       jlong *id_buffer;
        int fi;
 
        (*env)->SetObjectArrayElement(env, jthreadArr, ti, thread);
        state_buffer[ti] = convert_JVMTI_thread_status_to_jfluid_status(state);
        
-       jmethodIdArr = (*env)->NewIntArray(env, infop->frame_count);
+       jmethodIdArr = (*env)->NewLongArray(env, infop->frame_count);
        (*env)->SetObjectArrayElement(env, methodIdArrArr, ti, jmethodIdArr);    
-       id_buffer = calloc(infop->frame_count, sizeof(jint));
+       id_buffer = calloc(infop->frame_count, sizeof(jlong));
        for (fi = 0; fi < infop->frame_count; fi++) {
-          id_buffer[fi] = convert_jmethodID_to_jint(frames[fi].method);
+          id_buffer[fi] = convert_jmethodID_to_jlong(frames[fi].method);
        }
-       (*env)->SetIntArrayRegion(env, jmethodIdArr, 0, infop->frame_count, id_buffer);
+       (*env)->SetLongArrayRegion(env, jmethodIdArr, 0, infop->frame_count, id_buffer);
        free(id_buffer);
     }
     (*env)->SetIntArrayRegion(env, statesArr, 0, thread_count, state_buffer);

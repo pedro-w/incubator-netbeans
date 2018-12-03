@@ -40,7 +40,7 @@ class ProfilerRuntimeSampler extends ProfilerRuntime {
     
     static class Sampling extends SamplingThread {
         private int[] states = new int[0];
-        private int[][] methodIds = new int[0][];        
+        private long[][] methodIds = new long[0][];        
         private Map arrayOffsetMap = new HashMap();
         private Map threadIdMap = new HashMap();
         private volatile boolean resetData = false;
@@ -54,7 +54,7 @@ class ProfilerRuntimeSampler extends ProfilerRuntime {
         void sample() {
             Thread[][] newThreads = new Thread[1][];
             int[][] newStates = new int[1][];
-            int[][][] newMethodIds = new int[1][][];        
+            long[][][] newMethodIds = new long[1][][];        
             Map newArrayOffsetMap = new HashMap();
             Map newThreadIdMap = new HashMap();
             long timestamp;
@@ -73,7 +73,7 @@ class ProfilerRuntimeSampler extends ProfilerRuntime {
                     writeThreadDumpStart(timestamp);
                     for (int i = 0; i < newThreads[0].length; i++) {
                         Thread t = newThreads[0][i];
-                        int[] mids = newMethodIds[0][i];
+                        long[] mids = newMethodIds[0][i];
 
                         if (!ThreadInfo.isProfilerServerThread(t)) {
                             int status = newStates[0][i];
@@ -116,7 +116,7 @@ class ProfilerRuntimeSampler extends ProfilerRuntime {
             arrayOffsetMap = new HashMap();
             threadIdMap = new HashMap();
             states = new int[0];
-            methodIds = new int[0][];        
+            methodIds = new long[0][];        
         }
          
         private void writeThreadDumpStart(long absTimeStamp) {
@@ -184,14 +184,14 @@ class ProfilerRuntimeSampler extends ProfilerRuntime {
             globalEvBufPos = curPos;
         }
 
-        private void writeThreadInfo(Integer tid, int status, int[] mids) {
+        private void writeThreadInfo(Integer tid, int status, long[] mids) {
             if (eventBuffer == null) {
                 return; 
             }
 
             int curPos = globalEvBufPos;
 
-            if (curPos + 6 + mids.length*4 > globalEvBufPosThreshold) { // Dump the buffer
+            if (curPos + 6 + mids.length*Long.BYTES > globalEvBufPosThreshold) { // Dump the buffer
                 externalActionsHandler.handleEventBufferDump(eventBuffer, 0, curPos);
                 curPos = 0;
             }
@@ -206,6 +206,10 @@ class ProfilerRuntimeSampler extends ProfilerRuntime {
             eventBuffer[curPos++] = (byte) ((stackLen >> 8) & 0xFF);
             eventBuffer[curPos++] = (byte) ((stackLen) & 0xFF);
             for (int i = 0; i < mids.length; i++) {
+                eventBuffer[curPos++] = (byte) ((mids[i] >> 56) & 255);
+                eventBuffer[curPos++] = (byte) ((mids[i] >> 48) & 255);
+                eventBuffer[curPos++] = (byte) ((mids[i] >> 40) & 255);
+                eventBuffer[curPos++] = (byte) ((mids[i] >> 32) & 255);                
                 eventBuffer[curPos++] = (byte) ((mids[i] >> 24) & 255);
                 eventBuffer[curPos++] = (byte) ((mids[i] >> 16) & 255);
                 eventBuffer[curPos++] = (byte) ((mids[i] >> 8) & 255);
@@ -214,7 +218,6 @@ class ProfilerRuntimeSampler extends ProfilerRuntime {
             globalEvBufPos = curPos;
         }
     }
-
     static void initialize() {
         sampling = new Sampling(samplingFrequency);
         sampling.start();

@@ -24,16 +24,21 @@ import org.netbeans.lib.profiler.client.ClientUtils;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 
 /**
- * This class maps jmethodIds to (clazz, methodIdx) pairs
+ * This class maps jmethodIds to (class name, method name, method signature) 
  *
  * @author Misha Dmitriev
  */
 public class JMethodIdTable {
     //~ Inner Classes ------------------------------------------------------------------------------------------------------------
-
+    /** 
+     * Holds the details of a Method ID.
+     */
     public static class JMethodIdTableEntry {
         //~ Instance fields ------------------------------------------------------------------------------------------------------
 
@@ -41,56 +46,51 @@ public class JMethodIdTable {
         public String methodName;
         public String methodSig;
         public transient boolean isNative;
-        int methodId;
+        public final long methodId;
 
         //~ Constructors ---------------------------------------------------------------------------------------------------------
 
-        JMethodIdTableEntry(int methodId) {
+        JMethodIdTableEntry(long methodId) {
             this.methodId = methodId;
         }
     }
 
     //~ Static fields/initializers -----------------------------------------------------------------------------------------------
 
-    static String NATIVE_SUFFIX = "[native]";   // NOI18N
+    public final static String NATIVE_SUFFIX = "[native]";   // NOI18N
     private static JMethodIdTable defaultTable;
 
     //~ Instance fields ----------------------------------------------------------------------------------------------------------
 
-    private JMethodIdTableEntry[] entries;
+    private final Map<Long, JMethodIdTableEntry> entries = new HashMap<>(97);
     private boolean staticTable = false;
-    private int incompleteEntries;
-    private int nElements;
-    private int size;
-    private int threshold;
+    private boolean incompleteEntries = false;
 
     //~ Constructors -------------------------------------------------------------------------------------------------------------
-
+    /**
+     * Create a new, empty table.
+     */
     public JMethodIdTable() {
-        size = 97;
-        threshold = (size * 3) / 4;
-        nElements = 0;
-        entries = new JMethodIdTableEntry[size];
     }
 
+    /** 
+     * Construct this table as a copy of another.
+     * This table will not share any data with the other table.
+     * @param otherTable another table.
+     */
     public JMethodIdTable(JMethodIdTable otherTable) {
         staticTable = true;
-        threshold = otherTable.nElements + 1;
-        size = (threshold * 4) / 3 ;
-        nElements = 0;
-        entries = new JMethodIdTableEntry[size];
-        
-        for (int i = 0; i < otherTable.entries.length; i++) {
-            JMethodIdTableEntry entry = otherTable.entries[i];
-            
-            if (entry != null) {
-                addEntry(entry.methodId, entry.className, entry.methodName, entry.methodSig, entry.isNative);
-            }
+        for (JMethodIdTableEntry entry : otherTable.entries.values()) {
+            addEntry(entry.methodId, entry.className, entry.methodName, entry.methodSig, entry.isNative);
         }
     }
 
     //~ Methods ------------------------------------------------------------------------------------------------------------------
-
+    /**
+     * Return the default instance of the table.
+     * Repeated calls will return the same object.
+     * @return the table
+     */
     synchronized public static JMethodIdTable getDefault() {
         if (defaultTable == null) {
             defaultTable = new JMethodIdTable();
@@ -98,179 +98,143 @@ public class JMethodIdTable {
 
         return defaultTable;
     }
-
+    /**
+     * Reset the default table.
+     * The next call to {@link #getDefault()} will return a new object
+     */
     synchronized public static void reset() {
         defaultTable = null;
     }
-
+    /** 
+     * Return a representation for debugging.
+     * @return the string
+     */
     synchronized public String debug() {
-        if (entries == null) {
-            return "Entries = null, size = " + size + ", nElements = " + nElements + ", threshold = " // NOI18N
-                   + threshold + ", incompleteEntries = " + incompleteEntries; // NOI18N
-        } else {
-            return "Entries.length = " + entries.length + ", size = " + size + ", nElements = " + nElements // NOI18N
-                   + ", threshold = " + threshold + ", incompleteEntries = " + incompleteEntries; // NOI18N
-        }
+            return "Entries.size() = " + entries.size() + ", incompleteEntries = " + incompleteEntries; // NOI18N
     }
-
+    /**
+     * Read this table back from a data stream.
+     * See notes on format in {@link #writeToStream(java.io.DataOutputStream)}
+     * @param in the stream to read from
+     * @throws IOException 
+     */
     synchronized public void readFromStream(DataInputStream in) throws IOException {
-        size = in.readInt();
-        nElements = in.readInt();
-        threshold = in.readInt();
-
-        entries = new JMethodIdTableEntry[size];
-
+        entries.clear();
         int count = in.readInt();
 
         for (int i = 0; i < count; i++) {
-            int methodId = in.readInt();
+            long methodId = in.readLong();
             String className = in.readUTF();
             String methodName = in.readUTF();
             String methodSig = in.readUTF();
-            boolean isNative = false;
+            boolean isNative;
             
             if (methodName.endsWith(NATIVE_SUFFIX)) {
                 methodName = methodName.substring(0, methodName.length() - NATIVE_SUFFIX.length());
                 isNative = true;
+            } else {
+                isNative = false;
             }
             addEntry(methodId, className, methodName, methodSig, isNative);
         }
     }
-
+    /**
+     * Write this table to a data stream.
+     * The format is
+     * <ul>
+     * <li> count (int)
+     * </ul>
+     * Then the entries (repeated 'count' times):
+     * <ul>
+     * <li> ID (long)
+     * <li> Class Name (UTF-8 string)
+     * <li> Method Name (UTF-8 string)
+     * <li> Method Signature (UTF-8 string)
+     * </ul>
+     * @param out the stream to write to
+     * @throws IOException 
+     */
     synchronized public void writeToStream(DataOutputStream out) throws IOException {
-        out.writeInt(size);
-        out.writeInt(nElements);
-        out.writeInt(threshold);
-
-        int count = 0;
-
-        for (int i = 0; i < entries.length; i++) {
-            if (entries[i] != null) {
-                count++;
-            }
-        }
+        int count = entries.size();
 
         out.writeInt(count);
 
-        for (int i = 0; i < entries.length; i++) {
-            JMethodIdTableEntry entry = entries[i];
-            
-            if (entry != null) {
-                out.writeInt(entry.methodId);
-                out.writeUTF(entry.className);
-                out.writeUTF(entry.isNative ? entry.methodName.concat(NATIVE_SUFFIX) : entry.methodName);
-                out.writeUTF(entry.methodSig);
-            }
+        for (JMethodIdTableEntry entry : entries.values()) {
+            out.writeLong(entry.methodId);
+            out.writeUTF(entry.className);
+            out.writeUTF(entry.isNative ? entry.methodName.concat(NATIVE_SUFFIX) : entry.methodName);
+            out.writeUTF(entry.methodSig);
         }
     }
-
-    synchronized public JMethodIdTableEntry getEntry(int methodId) {
-        int pos = hash(methodId) % size;
-
-        while ((entries[pos] != null) && (entries[pos].methodId != methodId)) {
-            pos = (pos + 1) % size;
-        }
-
-        return entries[pos];
+    /**
+     * Get the entry for a given Method ID.
+     * Returns null if the ID has never been added.
+     * @param methodId the method ID
+     * @return the corresponding entry
+     */
+    synchronized public JMethodIdTableEntry getEntry(long methodId) {
+        return entries.get(methodId);
     }
 
+    /**
+     * Ask the Profiler Client to fetch the details of any incomplete entries.
+     * @param profilerClient the client connection
+     * @throws org.netbeans.lib.profiler.client.ClientUtils.TargetAppOrVMTerminated 
+     */
     synchronized public void getNamesForMethodIds(ProfilerClient profilerClient)
                                     throws ClientUtils.TargetAppOrVMTerminated {
         if (staticTable) {
             throw new IllegalStateException("Attempt to update snapshot JMethodIdTable"); // NOI18N
         }
 
-        if (incompleteEntries == 0) {
+        if (!incompleteEntries) {
             return;
         }
-
-        int[] missingNameMethodIds = new int[incompleteEntries];
-        int idx = 0;
-
-        for (int i = 0; i < entries.length; i++) {
-            if (entries[i] == null) {
-                continue;
+        ArrayList<JMethodIdTableEntry> incomplete = new ArrayList<>();
+        for (JMethodIdTableEntry entry : entries.values()) {
+            if (entry.className == null) {
+                incomplete.add(entry);
             }
-
-            if (entries[i].className == null) {
-                missingNameMethodIds[idx++] = entries[i].methodId;
-            }
+        }
+        long[] missingNameMethodIds = new long[incomplete.size()];
+        
+        for (int i=0; i< missingNameMethodIds.length; ++i) {
+                missingNameMethodIds[i] = incomplete.get(i).methodId;
         }
 
         String[][] methodClassNameAndSig = profilerClient.getMethodNamesForJMethodIds(missingNameMethodIds);
 
         for (int i = 0; i < missingNameMethodIds.length; i++) {
-            completeEntry(missingNameMethodIds[i], methodClassNameAndSig[0][i], methodClassNameAndSig[1][i],
-                          methodClassNameAndSig[2][i], getBoolean(methodClassNameAndSig[3][i]));
+            JMethodIdTableEntry entry = incomplete.get(i);
+            entry.className = methodClassNameAndSig[0][i];
+            entry.methodName = methodClassNameAndSig[1][i];
+            entry.methodSig = methodClassNameAndSig[2][i];
+            entry.isNative = getBoolean(methodClassNameAndSig[3][i]);
         }
 
-        incompleteEntries = 0;
+        incompleteEntries = false;
     }
 
-    void addEntry(int methodId, String className, String methodName, String methodSig, boolean isNative) {
-        checkMethodId(methodId);
-        completeEntry(methodId, className, methodName, methodSig, isNative);
+    private void addEntry(long methodId, String className, String methodName, String methodSig, boolean isNative) {
+        JMethodIdTableEntry entry = entries.putIfAbsent(methodId, new JMethodIdTableEntry(methodId));
+        entry.className = className;
+        entry.methodName = methodName;
+        entry.methodSig = methodSig;
+        entry.isNative = isNative;
     }
-
-    synchronized public void checkMethodId(int methodId) {
-        int pos = hash(methodId) % size;
-
-        while (entries[pos] != null) {
-            if (entries[pos].methodId == methodId) {
-                return;
-            }
-
-            pos = (pos + 1) % size;
-        }
-
-        if (nElements < threshold) {
-            entries[pos] = new JMethodIdTableEntry(methodId);
-            nElements++;
-            incompleteEntries++;
-
-            return;
-        } else {
-            growTable();
-            checkMethodId(methodId);
+    /**
+     * Add an incomplete entry for a Method ID.
+     * This can be resolved later with 
+     * {@link #getNamesForMethodIds(ProfilerClient)}
+     * @param methodId the method id.
+     */
+    synchronized public void checkMethodId(long methodId) {
+        if (!entries.containsKey(methodId)) {
+            entries.put(methodId, new JMethodIdTableEntry(methodId));
+            incompleteEntries = true;
         }
     }
 
-    synchronized private void completeEntry(int methodId, String className, String methodName, String methodSig, boolean isNative) {
-        int pos = hash(methodId) % size;
-
-        while (entries[pos].methodId != methodId) {
-            pos = (pos + 1) % size;
-        }
-
-        entries[pos].className = className;
-        entries[pos].methodName = methodName;
-        entries[pos].methodSig = methodSig;
-        entries[pos].isNative = isNative;
-    }
-
-    private void growTable() {
-        JMethodIdTableEntry[] oldEntries = entries;
-        size = (size * 2) + 1;
-        threshold = (size * 3) / 4;
-        entries = new JMethodIdTableEntry[size];
-
-        for (int i = 0; i < oldEntries.length; i++) {
-            if (oldEntries[i] != null) {
-                int pos = hash(oldEntries[i].methodId) % size;
-
-                while (entries[pos] != null) {
-                    pos = (pos + 1) % size;
-                }
-
-                entries[pos] = oldEntries[i];
-            }
-        }
-    }
-
-    private int hash(int x) {
-        return ((x >> 2) * 123457) & 0xFFFFFFF;
-    }
-    
     private boolean getBoolean(String boolStr) {
         return "1".equals(boolStr);       // NOI18N
     }

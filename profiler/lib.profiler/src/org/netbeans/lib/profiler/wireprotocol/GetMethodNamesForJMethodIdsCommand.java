@@ -33,11 +33,11 @@ import java.io.ObjectOutputStream;
 public class GetMethodNamesForJMethodIdsCommand extends Command {
     //~ Instance fields ----------------------------------------------------------------------------------------------------------
 
-    private int[] methodIds;
+    private long[] methodIds;
 
     //~ Constructors -------------------------------------------------------------------------------------------------------------
 
-    public GetMethodNamesForJMethodIdsCommand(int[] methodIds) {
+    public GetMethodNamesForJMethodIdsCommand(long[] methodIds) {
         super(GET_METHOD_NAMES_FOR_JMETHOD_IDS);
         this.methodIds = methodIds;
     }
@@ -49,7 +49,7 @@ public class GetMethodNamesForJMethodIdsCommand extends Command {
 
     //~ Methods ------------------------------------------------------------------------------------------------------------------
 
-    public int[] getMethodIds() {
+    public long[] getMethodIds() {
         return methodIds;
     }
 
@@ -60,10 +60,10 @@ public class GetMethodNamesForJMethodIdsCommand extends Command {
 
     void readObject(ObjectInputStream in) throws IOException {
         int len = in.readInt();
-        methodIds = new int[len];
+        methodIds = new long[len];
 
         for (int i = 0; i < len; i++) {
-            methodIds[i] = in.readInt();
+            methodIds[i] = in.readLong();
         }
     }
 
@@ -71,7 +71,7 @@ public class GetMethodNamesForJMethodIdsCommand extends Command {
         out.writeInt(methodIds.length);
 
         for (int i = 0; i < methodIds.length; i++) {
-            out.writeInt(methodIds[i]);
+            out.writeLong(methodIds[i]);
         }
 
         methodIds = null;

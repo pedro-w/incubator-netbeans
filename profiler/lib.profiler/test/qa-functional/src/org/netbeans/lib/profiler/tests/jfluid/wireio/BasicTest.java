@@ -99,7 +99,7 @@ public class BasicTest extends CommonWireIOTestCase {
             log("sending command " + cmd);
             wireIO.sendComplexCommand(cmd);
 
-            cmd = new GetMethodNamesForJMethodIdsCommand(new int[] { 1 });
+            cmd = new GetMethodNamesForJMethodIdsCommand(new long[] { 1 });
             log("sending command " + cmd);
             wireIO.sendComplexCommand(cmd);
 

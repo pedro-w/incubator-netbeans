@@ -686,7 +686,7 @@ public class ProfilerClient implements CommonConstants {
      * @return the 4xn array, containing quadruplets of {class name, method name, method signature, native flag} strings for
      *         given jmethodIds
      */
-    public synchronized String[][] getMethodNamesForJMethodIds(int[] methodIds)
+    public synchronized String[][] getMethodNamesForJMethodIds(long[] methodIds)
         throws ClientUtils.TargetAppOrVMTerminated {
         final int PACKEDARR_ITEMS = 4; // must match PACKEDARR_ITEMS in Stacks.c
         checkForTargetVMAlive();
