@@ -39,6 +39,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
+#include <stdint.h>
 
 #include "jni.h"
 #include "jvmti.h"
@@ -64,44 +65,90 @@ static jint *_stack_id_buffer = NULL;
 static jclass threadType = NULL;
 static jclass intArrType = NULL;
 static long base_addresses[NO_OF_BASE_ADDRESS]={-1L,-1L,-1L,-1L};
+struct entry { 
+    jmethodID id;
+    jint key; 
+};
+static jmethodID* ids = NULL;
+static int capacity;
+struct entry* entries = NULL;
+static int size;
+static int nElements;
+static int threshold;
 
+
+static uint32_t jmethodid_hashcode(jmethodID jmethod) {
+    // This is an unsigned version of Long#hashCode
+    uintptr_t ptr = (intptr_t) jmethod;
+    return (uint32_t)(ptr ^ (ptr >> 32));
+}
+static void growTable() {
+    fprintf(stderr, "*** Now growing table\n");
+    struct entry* old = entries;
+    int oldsize = size, i;
+    size = (size * 2) + 1;
+    threshold = size * 3 / 4;
+    entries = calloc(size, sizeof(struct entry));
+    for (i=0; i < oldsize; ++i) {
+        if (old[i].id) {
+            int pos = jmethodid_hashcode(old[i].id) % size;
+            while (entries[pos].id) {
+                pos = (pos + 1) % size;
+            }
+            entries[pos].id = old[i].id;
+            entries[pos].key = old[i].key;
+        }
+    }
+    free(old);
+}
+static void initTable() {
+    fprintf(stderr, "*** now setting up table\n");
+    capacity = size = 97;
+    nElements = 0;
+    threshold = size * 3 / 4;
+    ids = calloc(capacity, sizeof(jmethodID));
+    entries = calloc(size, sizeof(struct entry));
+}
 static jint convert_jmethodID_to_jint(jmethodID jmethod) {
     if (NEEDS_CONVERSION) {
-        long base_address=(long)jmethod&BASE_ADDRESS_MASK;
-        unsigned int i;
-
-        for (i=0;i<NO_OF_BASE_ADDRESS;i++) {
-            long ba = base_addresses[i];
-
-            if (ba == -1L) {
-                base_addresses[i] = base_address;
-                //fprintf(stderr,"Profiler Agent: Registering new base %lx\n",base_address);
+        assert(entries);
+        int pos = jmethodid_hashcode(jmethod) % size;
+        assert(pos >=0 && pos < size);
+        while (entries[pos].id) {
+            if (entries[pos].id == jmethod) {
+                return entries[pos].key;
             }
-            if (base_addresses[i]==base_address) {
-                jint offset = (long)jmethod&OFFSET_MASK;
-                offset |= i<<NO_OF_MASK_BITS;
-                //fprintf(stderr,"M %p -> %x\n",jmethod,offset);
-                return offset;
-            }
+            pos = (pos + 1) % size;
         }
-        fprintf(stderr,"Profiler Agent Warning: Cannot convert %p\n",jmethod);
-        return 0;
+        if (nElements < threshold) {
+            entries[pos].id = jmethod;
+            entries[pos].key = nElements;
+            fprintf(stderr, "*** Now convert %p to %d\n", jmethod, nElements);
+            if (nElements >= capacity) {
+                jmethodID* oldids = ids;
+                capacity *= 2;
+                ids = calloc(capacity, sizeof(jmethodID));
+                memcpy(ids, oldids, nElements * sizeof(jmethodID));
+                free(oldids);
+            }
+            ids[nElements] = jmethod;
+            nElements++;
+            return entries[pos].key;
+        } else {
+            growTable();
+            return convert_jmethodID_to_jint(jmethod);
+        }
     } else {
-        return (jint)jmethod;
+        return (jint)(intptr_t)jmethod;
     }
 }
 
 static jmethodID convert_jint_to_jmethodID(jint method) {
     if (NEEDS_CONVERSION) {
-        int offset = method&OFFSET_MASK;
-        int base_id = ((unsigned int)method)>>NO_OF_MASK_BITS;
-        jmethodID jmethod = (jmethodID)(base_addresses[base_id]|offset);
-
-        //fprintf(stderr,"X %x -> %p\n",method,jmethod);
-        //fflush(stderr);
-        return jmethod;
+        fprintf(stderr, "*** Now unconvert %d to %p\n", method, ids[method]);
+        return ids[method];
     } else {
-        return (jmethodID)method;
+        return (jmethodID)(intptr_t)method;
     }
 }
 
@@ -170,7 +217,9 @@ JNIEXPORT jint JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_getCu
     }
 
     (*_jvmti)->GetStackTrace(_jvmti, jni_thread, 0, depth, _stack_frames_buffer, &count);
-
+    if (entries == NULL) {
+        initTable();
+    }
     for (i = 0; i < count; i++) {
         _stack_id_buffer[i] = convert_jmethodID_to_jint(_stack_frames_buffer[i].method);
     }
@@ -355,6 +404,9 @@ JNIEXPORT void JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_getAl
     if (intArrType == NULL) {
         intArrType = (*env)->FindClass(env, "[I");
         intArrType = (*env)->NewGlobalRef(env, intArrType);
+    }
+    if (entries == NULL) {
+        initTable();
     }
     jthreadArr = (*env)->NewObjectArray(env, thread_count, threadType, NULL);
     (*env)->SetObjectArrayElement(env, threads, 0, jthreadArr);
