@@ -372,22 +372,17 @@ public class MavenCommandLineExecutor extends AbstractMavenExecutor {
             }
         }
 
-        //#164234
-        //if maven.bat file is in space containing path, we need to quote with simple quotes.
-        String quote = "\"";
-        // the command line parameters with space in them need to be quoted and escaped to arrive
-        // correctly to the java runtime on windows
-        String escaped = "\\" + quote;        
+        String escaped = Utilities.isWindows() ? "\\\"" : "'";
         for (Map.Entry<? extends String,? extends String> entry : config.getProperties().entrySet()) {
             if (!entry.getKey().startsWith(ENV_PREFIX)) {
                 //skip envs, these get filled in later.
                 //#228901 since u21 we need to use cmd /c to execute on windows, quotes get escaped and when there is space in value, the value gets wrapped in quotes.
-                String value = (Utilities.isWindows() ? entry.getValue().replace(quote, escaped) : entry.getValue().replace(quote, "'"));
+                String value = entry.getValue().replace("\"", escaped);
                 if (Utilities.isWindows() && value.endsWith("\"")) {
                     //#201132 property cannot end with 2 double quotes, add a space to the end after our quote to prevent the state
                     value = value + " ";
                 }
-                String s = "-D" + entry.getKey() + "=" + (Utilities.isWindows() && value.contains(" ") ? quote + value + quote : value);            
+                String s = "-D" + entry.getKey() + "=" + value;
                 toRet.add(s);
             }
         }
@@ -547,32 +542,6 @@ public class MavenCommandLineExecutor extends AbstractMavenExecutor {
         Constructor constructeur = new ShellConstructor(mavenHome);
 
         List<String> cmdLine = createMavenExecutionCommand(clonedConfig, constructeur);
-        
-        //#228901 on windows, since u21 we must use cmd /c
-        // the working format is ""C:\Users\mkleint\space in path\apache-maven-3.0.4\bin\mvn.bat"
-                           //-Dexec.executable=java -Dexec.args="-jar
-                           //C:\Users\mkleint\Documents\NetBeansProjects\JavaApplication13\dist\JavaApplication13.jar
-                           //-Dxx=\"space path\" -Dfoo=bar" exec:exec""
-        if (cmdLine.get(0).equals("cmd")) {
-            //merge all items after cmd /c into one string and quote it.
-            StringBuilder sb = new StringBuilder();
-            Iterator<String> it = cmdLine.iterator();
-            //sb.append("cmd.exe /c ");
-            it.next(); //cmd
-            it.next(); //c
-            String m = it.next();
-            
-            sb.append("\"");
-            sb.append(m);
-            while (it.hasNext()) {
-                sb.append(" ").append(it.next());
-            }
-            //XXX here we somehow assume that the last entry in line is the goal and it doesn't need to be enclosed in quotes itself. 3 quotes in line would break things.
-            sb.append("\""); //#237398 apparently one doublequote is more than enough. Not sure why 2 two doublequotes were initially added. but it broke issue 237398 and a single double quote appears to work fine with nb/maven/project in space in path combinations..
-            cmdLine = Arrays.asList(new String[] {
-                "cmd", "/c", sb.toString() //merge everything into one item here..
-            });
-        }
 
         ProcessBuilder builder = new ProcessBuilder(cmdLine);
         builder.redirectErrorStream(true);
