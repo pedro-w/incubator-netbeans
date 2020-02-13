@@ -77,6 +77,9 @@ static jclass intArrType = NULL;
  * index of the jmethodid in this array. Getting the jmethodid from the ID is an
  * array lookup. Getting the ID of a jmethod ID would be a linear scan of the array
  * but we use a hash-table to speed things up.
+ * 
+ * Note that the 'if (NEEDS_CONVERSION)' branch is actually resolved at compile-time
+ * if the optimiser is on, so there is no overhead if conversion is not needed.
  */
 
 /* Hash table entry */
@@ -113,7 +116,7 @@ static uint32_t jmethodid_hashcode(jmethodID jmethod)
 static void growTable()
 {
     int newsize = (entries_size * 2) + 1;
-    fprintf(stderr, "*** Now growing table from %d to %d\n", entries_size, newsize);
+    // fprintf(stderr, "*** Now growing table from %d to %d\n", entries_size, newsize);
     int i;
     struct entry *newentries = calloc(newsize, sizeof(struct entry));
     assert(newentries);
@@ -143,7 +146,7 @@ static void createTable()
 {
     assert(ids == NULL);
     assert(entries == NULL);
-    fprintf(stderr, "*** now setting up table\n");
+    // fprintf(stderr, "*** now setting up table\n");
     ids_size = entries_size = 97;
     id_count = 0;
     resize_threshold = entries_size * 3 / 4;
@@ -177,7 +180,7 @@ static jint convert_jmethodID_to_jint(jmethodID jmethod)
             /* Put into the hash table */
             entries[pos].id = jmethod;
             entries[pos].key = id_count;
-            fprintf(stderr, "*** Now convert %p to %d\n", jmethod, id_count);
+            // fprintf(stderr, "*** Now convert %p to %d\n", jmethod, id_count);
             /* and put in the array */
             if (id_count >= ids_size)
             {
@@ -210,7 +213,7 @@ static jmethodID convert_jint_to_jmethodID(jint method)
     if (NEEDS_CONVERSION)
     {
         assert(ids);
-        fprintf(stderr, "*** Now unconvert %d to %p\n", method, ids[method]);
+        // fprintf(stderr, "*** Now unconvert %d to %p\n", method, ids[method]);
         return ids[method];
     }
     else
