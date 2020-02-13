@@ -45,7 +45,7 @@ cl /I%BUILD_JDK%\include /I%BUILD_JDK%\include\win32 ^
 %BUILD_SRC_15%\Stacks.c ^
 %BUILD_SRC_15%\common_functions.c ^
 version.res ^
-/D WIN32 /LD /MD /Ox ^
+/D WIN32 /D NDEBUG /LD /MD /O2 ^
 /Fe:%BUILD_OUTPUT%\deployed\%JDK_DEPLOY%\windows-amd64\profilerinterface.dll ^
 /Fm:%BUILD_OUTPUT%\deployed\%JDK_DEPLOY%\windows-amd64\profilerinterface.map ^
 /link /DYNAMICBASE
