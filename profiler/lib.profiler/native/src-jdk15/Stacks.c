@@ -64,7 +64,22 @@ static jvmtiFrameInfo *_stack_frames_buffer = NULL;
 static jint *_stack_id_buffer = NULL;
 static jclass threadType = NULL;
 static jclass intArrType = NULL;
-static long base_addresses[NO_OF_BASE_ADDRESS]={-1L,-1L,-1L,-1L};
+
+/**
+ * The Profiler tracks methods on the stack using an ID which is a Java int (jint).
+ * It uses this ID to ask our DLL for the method's name. The JVM tracks methods
+ * by their jmethodid which is the same size as a pointer.
+ * 
+ * Conversion of jmethodids to jints:
+ * On a 32-bit JVM this is trivial since they are the same size, 
+ * just a cast is needed.
+ * On 64-bit we keep an array of jmethodids seen so far and the integer ID is the
+ * index of the jmethodid in this array. Getting the jmethodid from the ID is an
+ * array lookup. Getting the ID of a jmethod ID would be a linear scan of the array
+ * but we use a hash-table to speed things up.
+ */
+
+/* Hashtable entry */
 struct entry { 
     jmethodID id;
     jint key; 
@@ -82,26 +97,39 @@ static uint32_t jmethodid_hashcode(jmethodID jmethod) {
     uintptr_t ptr = (intptr_t) jmethod;
     return (uint32_t)(ptr ^ (ptr >> 32));
 }
+
+/**
+ * Increase the size of the hash table.
+ * Copy the old entries across, rehashing everything according
+ * to the new size
+ */ 
 static void growTable() {
-    fprintf(stderr, "*** Now growing table\n");
-    struct entry* old = entries;
-    int oldsize = size, i;
-    size = (size * 2) + 1;
-    threshold = size * 3 / 4;
-    entries = calloc(size, sizeof(struct entry));
-    for (i=0; i < oldsize; ++i) {
-        if (old[i].id) {
-            int pos = jmethodid_hashcode(old[i].id) % size;
-            while (entries[pos].id) {
-                pos = (pos + 1) % size;
+    int newsize = (size * 2) + 1;
+    fprintf(stderr, "*** Now growing table from %d to %d\n", size, newsize);
+    int i;
+    struct entry* newentries = calloc(newsize, sizeof(struct entry));
+    for (i=0; i < size; ++i) {
+        if (entries[i].id) {
+            int pos = jmethodid_hashcode(entries[i].id) % newsize;
+            while (newentries[pos].id) {
+                pos = (pos + 1) % newsize;
             }
-            entries[pos].id = old[i].id;
-            entries[pos].key = old[i].key;
+            newentries[pos].id = entries[i].id;
+            newentries[pos].key = entries[i].key;
         }
     }
-    free(old);
+    size = newsize;
+    threshold = newsize * 3 / 4;
+    free(entries);
+    entries = newentries;
 }
-static void initTable() {
+/**
+ * Create table with initial size
+ * 
+ */
+static void createTable() {
+    assert(ids == NULL);
+    assert(entries == NULL);
     fprintf(stderr, "*** now setting up table\n");
     capacity = size = 97;
     nElements = 0;
@@ -114,6 +142,9 @@ static jint convert_jmethodID_to_jint(jmethodID jmethod) {
         assert(entries);
         int pos = jmethodid_hashcode(jmethod) % size;
         assert(pos >=0 && pos < size);
+        /* Starting from the position given by the hashcode, find
+         * the next free slot (id == 0).
+         */
         while (entries[pos].id) {
             if (entries[pos].id == jmethod) {
                 return entries[pos].key;
@@ -121,9 +152,11 @@ static jint convert_jmethodID_to_jint(jmethodID jmethod) {
             pos = (pos + 1) % size;
         }
         if (nElements < threshold) {
+            /* Put into the hash table */
             entries[pos].id = jmethod;
             entries[pos].key = nElements;
             fprintf(stderr, "*** Now convert %p to %d\n", jmethod, nElements);
+            /* and put in the array */
             if (nElements >= capacity) {
                 jmethodID* oldids = ids;
                 capacity *= 2;
@@ -135,6 +168,7 @@ static jint convert_jmethodID_to_jint(jmethodID jmethod) {
             nElements++;
             return entries[pos].key;
         } else {
+            /* If the table is getting full, enlarge it and try again */
             growTable();
             return convert_jmethodID_to_jint(jmethod);
         }
@@ -145,6 +179,7 @@ static jint convert_jmethodID_to_jint(jmethodID jmethod) {
 
 static jmethodID convert_jint_to_jmethodID(jint method) {
     if (NEEDS_CONVERSION) {
+        assert(ids);
         fprintf(stderr, "*** Now unconvert %d to %p\n", method, ids[method]);
         return ids[method];
     } else {
@@ -218,7 +253,7 @@ JNIEXPORT jint JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_getCu
 
     (*_jvmti)->GetStackTrace(_jvmti, jni_thread, 0, depth, _stack_frames_buffer, &count);
     if (entries == NULL) {
-        initTable();
+        createTable();
     }
     for (i = 0; i < count; i++) {
         _stack_id_buffer[i] = convert_jmethodID_to_jint(_stack_frames_buffer[i].method);
@@ -406,7 +441,7 @@ JNIEXPORT void JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_getAl
         intArrType = (*env)->NewGlobalRef(env, intArrType);
     }
     if (entries == NULL) {
-        initTable();
+        createTable();
     }
     jthreadArr = (*env)->NewObjectArray(env, thread_count, threadType, NULL);
     (*env)->SetObjectArrayElement(env, threads, 0, jthreadArr);
