@@ -18,6 +18,10 @@ rem under the License.
 rem Edit the following line to set the JDK location (for JNI headers)
 rem or leave if you have JDK_HOME set.
 SET BUILD_JDK=%JDK_HOME%
+rem Edit the following line to affect the deployment directory.
+rem Should not need to be changed as JNI is compatible for all versions 
+rem after 1.6.
+SET JDK_DEPLOY=jdk16
 
 rem Do not alter below this line
 SET BUILD_SRC_15=..\src-jdk15
@@ -25,8 +29,8 @@ SET BUILD_SRC=..\src
 SET BUILD_OUTPUT=%TEMP%\dist
 SET BUILD_DEPLOY=..\..\release\lib
 
-mkdir %BUILD_OUTPUT%\deployed\jdk16\windows-amd64
-mkdir %BUILD_DEPLOY%\deployed\jdk16\windows-amd64
+mkdir %BUILD_OUTPUT%\deployed\%JDK_DEPLOY%\windows-amd64
+mkdir %BUILD_DEPLOY%\deployed\%JDK_DEPLOY%\windows-amd64
 
 rc /Fo .\version.res %BUILD_SRC_15%\windows\version.rc
 
@@ -42,12 +46,13 @@ cl /I%BUILD_JDK%\include /I%BUILD_JDK%\include\win32 ^
 %BUILD_SRC_15%\common_functions.c ^
 version.res ^
 /D WIN32 /LD /MD /Ox ^
-/Fe:%BUILD_OUTPUT%\deployed\jdk16\windows-amd64\profilerinterface.dll ^
-/Fm:%BUILD_OUTPUT%\deployed\jdk16\windows-amd64\profilerinterface.map ^
+/Fe:%BUILD_OUTPUT%\deployed\%JDK_DEPLOY%\windows-amd64\profilerinterface.dll ^
+/Fm:%BUILD_OUTPUT%\deployed\%JDK_DEPLOY%\windows-amd64\profilerinterface.map ^
 /link /DYNAMICBASE
 
 del *.obj *.res
-del %BUILD_OUTPUT%\deployed\jdk16\windows-amd64\*.lib %BUILD_OUTPUT%\deployed\jdk16\windows-amd64\*.exp %BUILD_OUTPUT%\deployed\jdk16\windows-amd64\*.ilk %BUILD_OUTPUT%\deployed\jdk16\windows-amd64\*.pdb
+del %BUILD_OUTPUT%\deployed\%JDK_DEPLOY%\windows-amd64\*.lib 
+del %BUILD_OUTPUT%\deployed\%JDK_DEPLOY%\windows-amd64\*.exp 
 
-copy %BUILD_OUTPUT%\deployed\jdk16\windows-amd64\*.dll %BUILD_DEPLOY%\deployed\jdk16\windows-amd64
-copy %BUILD_OUTPUT%\deployed\jdk16\windows-amd64\*.map %BUILD_DEPLOY%\deployed\jdk16\windows-amd64
+copy %BUILD_OUTPUT%\deployed\%JDK_DEPLOY%\windows-amd64\*.dll %BUILD_DEPLOY%\deployed\%JDK_DEPLOY%\windows-amd64
+copy %BUILD_OUTPUT%\deployed\%JDK_DEPLOY%\windows-amd64\*.map %BUILD_DEPLOY%\deployed\%JDK_DEPLOY%\windows-amd64
