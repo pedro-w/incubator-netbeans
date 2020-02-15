@@ -24,10 +24,16 @@
 
 #ifdef WIN32
 #include <Windows.h>
+#ifdef _WIN64
+#define NEEDS_CONVERSION
+#endif
 #else
 #include <sys/time.h>
 #include <fcntl.h>
 #include <time.h>
+#if __SIZEOF_POINTER__ == 8
+#define NEEDS_CONVERSION
+#endif
 #endif
 
 #ifdef SOLARIS
@@ -48,13 +54,6 @@
 
 #include "common_functions.h"
 #include "Threads.h"
-
-#define NEEDS_CONVERSION (sizeof(jmethodID) != sizeof(jint))
-#define NO_OF_BASE_BITS 2
-#define NO_OF_MASK_BITS (32 - NO_OF_BASE_BITS)
-#define NO_OF_BASE_ADDRESS (1 << NO_OF_BASE_BITS)
-#define OFFSET_MASK ((1L << NO_OF_MASK_BITS) - 1)
-#define BASE_ADDRESS_MASK (~OFFSET_MASK)
 
 #define MAX_FRAMES 16384
 
@@ -78,10 +77,8 @@ static jclass intArrType = NULL;
  * array lookup. Getting the ID of a jmethod ID would be a linear scan of the array
  * but we use a hash-table to speed things up.
  * 
- * Note that the 'if (NEEDS_CONVERSION)' branch is actually resolved at compile-time
- * if the optimiser is on, so there is no overhead if conversion is not needed.
  */
-
+#ifdef NEEDS_CONVERSION
 /* Hash table entry */
 struct entry
 {
@@ -155,73 +152,68 @@ static void createTable()
 }
 static jint convert_jmethodID_to_jint(jmethodID jmethod)
 {
-    if (NEEDS_CONVERSION)
+    if (entries == NULL)
     {
-        if (entries == NULL)
-        {
-            createTable();
-            assert(entries);
-        }
-        int pos = jmethodid_hashcode(jmethod) % entries_size;
-        assert(pos >= 0 && pos < entries_size);
-        /* Starting from the position given by the hashcode, find
+        createTable();
+        assert(entries);
+    }
+    int pos = jmethodid_hashcode(jmethod) % entries_size;
+    assert(pos >= 0 && pos < entries_size);
+    /* Starting from the position given by the hashcode, find
          * the next free slot (id == 0).
          */
-        while (entries[pos].id)
+    while (entries[pos].id)
+    {
+        if (entries[pos].id == jmethod)
         {
-            if (entries[pos].id == jmethod)
-            {
-                return entries[pos].key;
-            }
-            pos = (pos + 1) % entries_size;
-        }
-        if (id_count < resize_threshold)
-        {
-            /* Put into the hash table */
-            entries[pos].id = jmethod;
-            entries[pos].key = id_count;
-            // fprintf(stderr, "*** Now convert %p to %d\n", jmethod, id_count);
-            /* and put in the array */
-            if (id_count >= ids_size)
-            {
-                jmethodID *oldids = ids;
-                ids_size *= 2;
-                ids = calloc(ids_size, sizeof(jmethodID));
-                assert(ids);
-                memcpy(ids, oldids, id_count * sizeof(jmethodID));
-                free(oldids);
-            }
-            ids[id_count] = jmethod;
-            id_count++;
             return entries[pos].key;
         }
-        else
+        pos = (pos + 1) % entries_size;
+    }
+    if (id_count < resize_threshold)
+    {
+        /* Put into the hash table */
+        entries[pos].id = jmethod;
+        entries[pos].key = id_count;
+        // fprintf(stderr, "*** Now convert %p to %d\n", jmethod, id_count);
+        /* and put in the array */
+        if (id_count >= ids_size)
         {
-            /* If the table is getting full, enlarge it and try again */
-            growTable();
-            return convert_jmethodID_to_jint(jmethod);
+            jmethodID *oldids = ids;
+            ids_size *= 2;
+            ids = calloc(ids_size, sizeof(jmethodID));
+            assert(ids);
+            memcpy(ids, oldids, id_count * sizeof(jmethodID));
+            free(oldids);
         }
+        ids[id_count] = jmethod;
+        id_count++;
+        return entries[pos].key;
     }
     else
     {
-        return (jint)(intptr_t)jmethod;
+        /* If the table is getting full, enlarge it and try again */
+        growTable();
+        return convert_jmethodID_to_jint(jmethod);
     }
 }
 
 static jmethodID convert_jint_to_jmethodID(jint method)
 {
-    if (NEEDS_CONVERSION)
-    {
-        assert(ids);
-        // fprintf(stderr, "*** Now unconvert %d to %p\n", method, ids[method]);
-        return ids[method];
-    }
-    else
-    {
-        return (jmethodID)(intptr_t)method;
-    }
+    assert(ids);
+    // fprintf(stderr, "*** Now unconvert %d to %p\n", method, ids[method]);
+    return ids[method];
 }
-
+#else
+static jint convert_jmethodID_to_jint(jmethodID jmethod)
+{
+    return (jint)(intptr_t)jmethod;
+}
+static jmethodID convert_jint_to_jmethodID(jint method)
+{
+    return (jmethodID)(intptr_t)method;
+}
+#endif
 /*
  * Class:     org_netbeans_lib_profiler_server_system_Stacks
  * Method:    getCurrentJavaStackDepth
@@ -485,10 +477,6 @@ JNIEXPORT void JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_getAl
     {
         intArrType = (*env)->FindClass(env, "[I");
         intArrType = (*env)->NewGlobalRef(env, intArrType);
-    }
-    if (entries == NULL)
-    {
-        createTable();
     }
     jthreadArr = (*env)->NewObjectArray(env, thread_count, threadType, NULL);
     (*env)->SetObjectArrayElement(env, threads, 0, jthreadArr);

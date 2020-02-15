@@ -22,15 +22,14 @@ rem Edit the following line to affect the deployment directory.
 rem Should not need to be changed as JNI is compatible for all versions 
 rem after 1.6.
 SET JDK_DEPLOY=jdk16
+SET PLATFORM=windows
 
 rem Do not alter below this line
 SET BUILD_SRC_15=..\src-jdk15
 SET BUILD_SRC=..\src
-SET BUILD_OUTPUT=%TEMP%\dist
 SET BUILD_DEPLOY=..\..\release\lib
 
-mkdir %BUILD_OUTPUT%\deployed\%JDK_DEPLOY%\windows
-mkdir %BUILD_DEPLOY%\deployed\%JDK_DEPLOY%\windows
+mkdir %BUILD_DEPLOY%\deployed\%JDK_DEPLOY%\%PLATFORM%
 
 rc /Fo .\version.res %BUILD_SRC_15%\windows\version.rc
 
@@ -46,13 +45,8 @@ cl /I%BUILD_JDK%\include /I%BUILD_JDK%\include\win32 ^
 %BUILD_SRC_15%\common_functions.c ^
 version.res ^
 /D WIN32 /D NDEBUG /LD /MD /O2 ^
-/Fe:%BUILD_OUTPUT%\deployed\%JDK_DEPLOY%\windows\profilerinterface.dll ^
-/Fm:%BUILD_OUTPUT%\deployed\%JDK_DEPLOY%\windows\profilerinterface.map ^
+/Fe:%BUILD_DEPLOY%\deployed\%JDK_DEPLOY%\%PLATFORM%\profilerinterface.dll ^
+/Fm:%BUILD_DEPLOY%\deployed\%JDK_DEPLOY%\%PLATFORM%\profilerinterface.map ^
 /link /DYNAMICBASE
 
-del *.obj *.res
-del %BUILD_OUTPUT%\deployed\%JDK_DEPLOY%\windows\*.lib 
-del %BUILD_OUTPUT%\deployed\%JDK_DEPLOY%\windows\*.exp 
-
-copy %BUILD_OUTPUT%\deployed\%JDK_DEPLOY%\windows\*.dll %BUILD_DEPLOY%\deployed\%JDK_DEPLOY%\windows
-copy %BUILD_OUTPUT%\deployed\%JDK_DEPLOY%\windows\*.map %BUILD_DEPLOY%\deployed\%JDK_DEPLOY%\windows
+del version.res
