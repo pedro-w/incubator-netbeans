@@ -308,7 +308,7 @@ static void copy_into_data_array(char *s)
         byteDataLen = newLen;
     }
 
-    strncpy((char *)(byteData + dataOfs), s, len);
+    memcpy((char *)(byteData + dataOfs), s, len);
     strOffsets[ofsIdx++] = dataOfs;
     dataOfs += len;
 }

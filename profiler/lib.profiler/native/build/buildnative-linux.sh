@@ -22,7 +22,7 @@ BuildForJDK()
         JAVA_HOME=$1
         JDK_ID=$2
 	echo $JAVA_HOME $JDK_ID
-	gcc -I$JAVA_HOME/include -I$JAVA_HOME/include/linux -DLINUX -pthread -fPIC -shared -O3 -Wall \
+	cc -I$JAVA_HOME/include -I$JAVA_HOME/include/linux -DLINUX -pthread -fPIC -shared -O3 -Wall -m32 \
 	-o ../../release/lib/deployed/$JDK_ID/linux/libprofilerinterface.so \
 	../src-jdk15/class_file_cache.c \
 	../src-jdk15/attach.c \
