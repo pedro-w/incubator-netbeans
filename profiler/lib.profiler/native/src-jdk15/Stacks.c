@@ -68,15 +68,15 @@ static jclass intArrType = NULL;
  * The Profiler tracks methods on the stack using an ID which is a Java int (jint).
  * It uses this ID to ask our DLL for the method's name. The JVM tracks methods
  * by their jmethodid which is the same size as a pointer.
- * 
+ *
  * Conversion of jmethodids to jints:
- * On a 32-bit JVM this is trivial since they are the same size, 
+ * On a 32-bit JVM this is trivial since they are the same size,
  * just a cast is needed.
  * On 64-bit we keep an array of jmethodids seen so far and the integer ID is the
  * index of the jmethodid in this array. Getting the jmethodid from the ID is an
  * array lookup. Getting the ID of a jmethod ID would be a linear scan of the array
  * but we use a hash-table to speed things up.
- * 
+ *
  */
 #ifdef NEEDS_CONVERSION
 /* Hash table entry */
@@ -93,7 +93,7 @@ struct entry *entries = NULL;
 static int entries_size;
 /* Current count of tracked IDs */
 static int id_count;
-/* Resize table when id_count exceeds this threshold. 
+/* Resize table when id_count exceeds this threshold.
  * i.e. before the table is full.
  */
 static int resize_threshold;
@@ -137,7 +137,7 @@ static void growTable()
 }
 /**
  * Create table with initial size
- * 
+ *
  */
 static void createTable()
 {
@@ -219,7 +219,8 @@ static jmethodID convert_jint_to_jmethodID(jint method)
  * Method:    getCurrentJavaStackDepth
  * Signature: (Ljava/lang/Thread;)I
  */
-JNIEXPORT jint JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_getCurrentJavaStackDepth(JNIEnv *env, jclass clz, jobject jni_thread)
+JNIEXPORT jint JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_getCurrentJavaStackDepth
+    (JNIEnv *env, jclass clz, jobject jni_thread)
 {
     jint count;
 
@@ -232,52 +233,53 @@ JNIEXPORT jint JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_getCu
  * Method:    createNativeStackFrameBuffer
  * Signature: (I)V
  */
-JNIEXPORT void JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_createNativeStackFrameBuffer(JNIEnv *env, jclass clz, jint sizeInFrames)
+JNIEXPORT void JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_createNativeStackFrameBuffer
+    (JNIEnv *env, jclass clz, jint sizeInFrames)
 {
-    if (_stack_frames_buffer != NULL)
-    {
+    if (_stack_frames_buffer != NULL) {
         Java_org_netbeans_lib_profiler_server_system_Stacks_clearNativeStackFrameBuffer(env, clz);
     }
     _stack_frames_buffer = calloc(sizeInFrames, sizeof(jvmtiFrameInfo));
     _stack_id_buffer = calloc(sizeInFrames, sizeof(jint));
 }
 
+
 /*
  * Class:     org_netbeans_lib_profiler_server_system_Stacks
  * Method:    clearNativeStackFrameBuffer
  * Signature: ()V
  */
-JNIEXPORT void JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_clearNativeStackFrameBuffer(JNIEnv *env, jclass clz)
+JNIEXPORT void JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_clearNativeStackFrameBuffer
+    (JNIEnv *env, jclass clz)
 {
-    if (_stack_frames_buffer != NULL)
-    {
+    if (_stack_frames_buffer != NULL) {
         free(_stack_frames_buffer);
     }
-    if (_stack_id_buffer != NULL)
-    {
+    if (_stack_id_buffer != NULL) {
         free(_stack_id_buffer);
     }
     _stack_frames_buffer = NULL;
     _stack_id_buffer = NULL;
 }
 
+
 /*
  * Class:     org_netbeans_lib_profiler_server_system_Stacks
  * Method:    getCurrentStackFrameIds
  * Signature: (Ljava/lang/Thread;I[I)I
  */
-JNIEXPORT jint JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_getCurrentStackFrameIds(JNIEnv *env, jclass clz, jthread jni_thread, jint depth, jintArray ret)
+JNIEXPORT jint JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_getCurrentStackFrameIds
+    (JNIEnv *env, jclass clz, jthread jni_thread, jint depth, jintArray ret)
 {
     jint i, count;
-    if (_stack_frames_buffer == NULL)
-    {
+    if (_stack_frames_buffer == NULL) {
         /* Can happen if profiling stopped concurrently */
         return 0;
     }
 
     (*_jvmti)->GetStackTrace(_jvmti, jni_thread, 0, depth, _stack_frames_buffer, &count);
-    for (i = 0; i < count; i++)
-    {
+
+    for (i = 0; i < count; i++) {
         _stack_id_buffer[i] = convert_jmethodID_to_jint(_stack_frames_buffer[i].method);
     }
     (*env)->SetIntArrayRegion(env, ret, 0, count, _stack_id_buffer);
@@ -285,24 +287,21 @@ JNIEXPORT jint JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_getCu
     return count;
 }
 
+
 static jbyte *byteData;
 static jint *strOffsets;
 static int byteDataLen, dataOfs, ofsIdx;
 
-static void copy_into_data_array(char *s)
-{
+static void copy_into_data_array(char *s) {
     int len = strlen(s);
-    if (dataOfs + len > byteDataLen)
-    {
+    if (dataOfs + len > byteDataLen) {
         jbyte *oldByteData = byteData;
         int newLen = byteDataLen * 2;
 
-        if (newLen < dataOfs + len)
-        {
-            newLen = dataOfs + len;
+        if (newLen < dataOfs + len) {
+          newLen = dataOfs+len;
         }
         byteData = malloc(newLen);
-        assert(byteData);
         memcpy(byteData, oldByteData, dataOfs);
         free(oldByteData);
         byteDataLen = newLen;
@@ -313,20 +312,21 @@ static void copy_into_data_array(char *s)
     dataOfs += len;
 }
 
-static void copy_dummy_names_into_data_array()
-{
+static void copy_dummy_names_into_data_array() {
     copy_into_data_array("<unknown class>");
     copy_into_data_array("<unknown method>");
     copy_into_data_array("()V");
     copy_into_data_array("0");
 }
 
+
 /*
  * Class:     org_netbeans_lib_profiler_server_system_Stacks
  * Method:    getMethodNamesForJMethodIds
  * Signature: (I[I[I)[B
  */
-JNIEXPORT jbyteArray JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_getMethodNamesForJMethodIds(JNIEnv *env, jclass clz, jint nMethods, jintArray jmethodIds, jintArray packedArrayOffsets)
+JNIEXPORT jbyteArray JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_getMethodNamesForJMethodIds
+  (JNIEnv *env, jclass clz, jint nMethods, jintArray jmethodIds, jintArray packedArrayOffsets)
 {
     jvmtiError res;
     int i, len;
@@ -334,17 +334,16 @@ JNIEXPORT jbyteArray JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks
     jbyteArray ret;
 
     // fprintf (stderr, "1");
-    methodIds = (jint *)malloc(sizeof(jint) * nMethods);
+    methodIds = (jint*) malloc(sizeof(jint) * nMethods);
     (*env)->GetIntArrayRegion(env, jmethodIds, 0, nMethods, methodIds);
-    strOffsets = (jint *)malloc(sizeof(jint) * nMethods * PACKEDARR_ITEMS);
-    byteDataLen = nMethods * PACKEDARR_ITEMS * 10; /* The initial size for the packed strings array */
-    byteData = (jbyte *)malloc(byteDataLen);
+    strOffsets = (jint*) malloc(sizeof(jint) * nMethods * PACKEDARR_ITEMS);
+    byteDataLen = nMethods * PACKEDARR_ITEMS * 10;  /* The initial size for the packed strings array */
+    byteData = (jbyte*) malloc(byteDataLen);
 
     // fprintf (stderr, "2");
     dataOfs = ofsIdx = 0;
 
-    for (i = 0; i < nMethods; i++)
-    {
+    for (i = 0; i < nMethods; i++) {
         jclass declaringClass;
         char *className, *genericSignature, *methodName, *methodSig, *genericMethodSig;
         jboolean native = JNI_FALSE;
@@ -353,17 +352,13 @@ JNIEXPORT jbyteArray JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks
         //fprintf (stderr, "Going to call GetMethodDeclaringClass for methodId = %d\n", *(int*)methodID);
 
         res = (*_jvmti)->GetMethodDeclaringClass(_jvmti, methodID, &declaringClass);
-        if (res != JVMTI_ERROR_NONE || declaringClass == NULL || *((int *)declaringClass) == 0)
-        { /* Also a bug workaround */
+        if (res != JVMTI_ERROR_NONE || declaringClass == NULL || *((int*)declaringClass) == 0) { /* Also a bug workaround */
             fprintf(stderr, "Profiler Agent Warning: Invalid declaringClass obtained from jmethodID\n");
-            fprintf(stderr, "Profiler Agent Warning: mId = %p, *mId = %d\n", methodID, *(int *)methodID);
+            fprintf(stderr, "Profiler Agent Warning: mId = %p, *mId = %d\n", methodID, *(int*)methodID);
             fprintf(stderr, "Profiler Agent Warning: dCl = %p", declaringClass);
-            if (declaringClass != NULL)
-            {
-                fprintf(stderr, ", *dCl = %d\n", *((int *)declaringClass));
-            }
-            else
-            {
+            if (declaringClass != NULL) {
+                fprintf(stderr, ", *dCl = %d\n", *((int*)declaringClass));
+            } else {
                 fprintf(stderr, "\n");
             }
             // fprintf(stderr, "*** res = %d", res);
@@ -374,8 +369,7 @@ JNIEXPORT jbyteArray JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks
         // fprintf (stderr, "Going to call GetClassSignature for methodId = %d, last res = %d, declaring class: %d\n", *(int*)methodID, res, *((int*)declaringClass));
 
         res = (*_jvmti)->GetClassSignature(_jvmti, declaringClass, &className, &genericSignature);
-        if (res != JVMTI_ERROR_NONE)
-        {
+        if (res != JVMTI_ERROR_NONE) {
             fprintf(stderr, "Profiler Agent Warning: Couldn't obtain name of declaringClass = %p\n", declaringClass);
             copy_dummy_names_into_data_array();
             continue;
@@ -385,8 +379,7 @@ JNIEXPORT jbyteArray JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks
 
         res = (*_jvmti)->GetMethodName(_jvmti, methodID, &methodName, &methodSig, &genericMethodSig);
 
-        if (res != JVMTI_ERROR_NONE)
-        {
+        if (res != JVMTI_ERROR_NONE) {
             fprintf(stderr, "Profiler Agent Warning: Couldn't obtain name for methodID = %p\n", methodID);
             copy_dummy_names_into_data_array();
             continue;
@@ -396,40 +389,34 @@ JNIEXPORT jbyteArray JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks
 
         res = (*_jvmti)->IsMethodNative(_jvmti, methodID, &native);
 
-        if (res != JVMTI_ERROR_NONE)
-        {
+        if (res != JVMTI_ERROR_NONE) {
             fprintf(stderr, "Profiler Agent Warning: Couldn't obtain native flag for methodID = %p\n", methodID);
         }
 
         // fprintf (stderr, "Going to copy results, last res = %d, method name: %s, sig: %s, genSig: %s, native %d\n", res, methodName, methodSig, genericMethodSig, native);
 
         len = strlen(className);
-        if (className[0] == 'L' && className[len - 1] == ';')
-        {
-            className[len - 1] = 0;
-            copy_into_data_array(className + 1);
-        }
-        else
-        {
+        if (className[0] == 'L' && className[len-1] == ';') {
+            className[len-1] = 0;
+            copy_into_data_array(className+1);
+        } else {
             copy_into_data_array(className);
         }
 
         copy_into_data_array(methodName);
         copy_into_data_array(methodSig);
-        copy_into_data_array(native ? "1" : "0");
+        copy_into_data_array(native?"1":"0");
 
-        (*_jvmti)->Deallocate(_jvmti, (void *)className);
+        (*_jvmti)->Deallocate(_jvmti, (void*)className);
 
-        if (genericSignature != NULL)
-        {
-            (*_jvmti)->Deallocate(_jvmti, (void *)genericSignature);
+        if (genericSignature != NULL) {
+            (*_jvmti)->Deallocate(_jvmti, (void*)genericSignature);
         }
 
-        (*_jvmti)->Deallocate(_jvmti, (void *)methodName);
-        (*_jvmti)->Deallocate(_jvmti, (void *)methodSig);
-        if (genericMethodSig != NULL)
-        {
-            (*_jvmti)->Deallocate(_jvmti, (void *)genericMethodSig);
+        (*_jvmti)->Deallocate(_jvmti, (void*)methodName);
+        (*_jvmti)->Deallocate(_jvmti, (void*)methodSig);
+        if (genericMethodSig != NULL) {
+            (*_jvmti)->Deallocate(_jvmti, (void*)genericMethodSig);
         }
     }
 
@@ -438,7 +425,7 @@ JNIEXPORT jbyteArray JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks
 
     ret = (*env)->NewByteArray(env, dataOfs);
     (*env)->SetByteArrayRegion(env, ret, 0, dataOfs, byteData);
-    (*env)->SetIntArrayRegion(env, packedArrayOffsets, 0, nMethods * PACKEDARR_ITEMS, strOffsets);
+    (*env)->SetIntArrayRegion(env, packedArrayOffsets, 0, nMethods*PACKEDARR_ITEMS, strOffsets);
 
     // fprintf (stderr, "4");
     free(strOffsets);
@@ -447,12 +434,14 @@ JNIEXPORT jbyteArray JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks
     return ret;
 }
 
+
 /*
  * Class:     org_netbeans_lib_profiler_server_system_Stacks
  * Method:    getAllStackTraces
  * Signature: ([[Ljava/lang/Thread;[[I[[[I)V
  */
-JNIEXPORT void JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_getAllStackTraces(JNIEnv *env, jclass clz, jobjectArray threads, jobjectArray states, jobjectArray frames)
+JNIEXPORT void JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_getAllStackTraces
+  (JNIEnv *env, jclass clz, jobjectArray threads, jobjectArray states, jobjectArray frames)
 {
     jobjectArray jthreadArr;
     jobjectArray statesArr;
@@ -464,17 +453,14 @@ JNIEXPORT void JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_getAl
     jvmtiError err;
 
     err = (*_jvmti)->GetAllStackTraces(_jvmti, MAX_FRAMES, &stack_info, &thread_count);
-    if (err != JVMTI_ERROR_NONE)
-    {
-        return;
+    if (err != JVMTI_ERROR_NONE) {
+       return;
     }
-    if (threadType == NULL)
-    {
+    if (threadType == NULL) {
         threadType = (*env)->FindClass(env, "java/lang/Thread");
         threadType = (*env)->NewGlobalRef(env, threadType);
     }
-    if (intArrType == NULL)
-    {
+    if (intArrType == NULL) {
         intArrType = (*env)->FindClass(env, "[I");
         intArrType = (*env)->NewGlobalRef(env, intArrType);
     }
@@ -486,33 +472,31 @@ JNIEXPORT void JNICALL Java_org_netbeans_lib_profiler_server_system_Stacks_getAl
     (*env)->SetObjectArrayElement(env, frames, 0, methodIdArrArr);
     state_buffer = calloc(thread_count, sizeof(jint));
 
-    for (ti = 0; ti < thread_count; ti++)
-    {
-        jvmtiStackInfo *infop = &stack_info[ti];
-        jthread thread = infop->thread;
-        jint state = infop->state;
-        jvmtiFrameInfo *frames = infop->frame_buffer;
-        jobjectArray jmethodIdArr;
-        jint *id_buffer;
-        int fi;
+    for (ti = 0; ti < thread_count; ti++) {
+       jvmtiStackInfo *infop = &stack_info[ti];
+       jthread thread = infop->thread;
+       jint state = infop->state;
+       jvmtiFrameInfo *frames = infop->frame_buffer;
+       jobjectArray jmethodIdArr;
+       jint *id_buffer;
+       int fi;
 
-        (*env)->SetObjectArrayElement(env, jthreadArr, ti, thread);
-        state_buffer[ti] = convert_JVMTI_thread_status_to_jfluid_status(state);
+       (*env)->SetObjectArrayElement(env, jthreadArr, ti, thread);
+       state_buffer[ti] = convert_JVMTI_thread_status_to_jfluid_status(state);
 
-        jmethodIdArr = (*env)->NewIntArray(env, infop->frame_count);
-        (*env)->SetObjectArrayElement(env, methodIdArrArr, ti, jmethodIdArr);
-        id_buffer = calloc(infop->frame_count, sizeof(jint));
-        for (fi = 0; fi < infop->frame_count; fi++)
-        {
-            id_buffer[fi] = convert_jmethodID_to_jint(frames[fi].method);
-        }
-        (*env)->SetIntArrayRegion(env, jmethodIdArr, 0, infop->frame_count, id_buffer);
-        free(id_buffer);
+       jmethodIdArr = (*env)->NewIntArray(env, infop->frame_count);
+       (*env)->SetObjectArrayElement(env, methodIdArrArr, ti, jmethodIdArr);
+       id_buffer = calloc(infop->frame_count, sizeof(jint));
+       for (fi = 0; fi < infop->frame_count; fi++) {
+          id_buffer[fi] = convert_jmethodID_to_jint(frames[fi].method);
+       }
+       (*env)->SetIntArrayRegion(env, jmethodIdArr, 0, infop->frame_count, id_buffer);
+       free(id_buffer);
     }
     (*env)->SetIntArrayRegion(env, statesArr, 0, thread_count, state_buffer);
 
     /* this one Deallocate call frees all data allocated by GetAllStackTraces */
-    err = (*_jvmti)->Deallocate(_jvmti, (unsigned char *)stack_info);
+    err = (*_jvmti)->Deallocate(_jvmti, (unsigned char*)stack_info);
     assert(err == JVMTI_ERROR_NONE);
     free(state_buffer);
 }
