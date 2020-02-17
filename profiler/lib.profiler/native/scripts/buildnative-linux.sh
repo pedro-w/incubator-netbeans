@@ -18,7 +18,7 @@
 # under the License.
 
 JDK_ID=jdk16
-CPPFLAGS="-I$JDK_HOME/include -I$JDK_HOME/include/linux -DLINUX"
+CPPFLAGS="-I$JDK_HOME/include -I$JDK_HOME/include/linux -I../build -DLINUX"
 CFLAGS="$CPPFLAGS -pthread -fPIC -shared -O3 -Wall -m32"
 SOURCES="../src-jdk15/class_file_cache.c \
 	../src-jdk15/attach.c \
@@ -30,7 +30,6 @@ SOURCES="../src-jdk15/class_file_cache.c \
 	../src-jdk15/Stacks.c \
 	../src-jdk15/common_functions.c"
 DEST="../../release/lib/deployed/jdk16/linux/"
-
-cc $CPPFLAGS -o config ../src-jdk15/config.c && ./config > ../src-jdk15/config.h
+cc $CPPFLAGS -o ../build/config ../src-jdk15/config.c && ../build/config > ../build/config.h
 cc $CFLAGS -o $DEST/libprofilerinterface.so \
    $SOURCES

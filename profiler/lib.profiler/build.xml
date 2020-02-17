@@ -24,7 +24,7 @@
     <import file="../../nbbuild/templates/projectized.xml"/>
 
     <property name="profiler.cluster" value="./release"/>
-    <property name="header.dir" value="${basedir}/native/src-jdk15"/>
+    <property name="header.dir" value="${basedir}/native/build"/>
     <target name="-process.release.files">
         <unzip src="external/profiler-external-binaries-8.2.zip" 
                overwrite="false"
@@ -64,6 +64,7 @@
             <include name="org/netbeans/lib/profiler/global/**"/>
             <include name="org/netbeans/lib/profiler/wireprotocol/**"/>
             <compilerarg line="${javac.compilerargs}"/>
+            <compilerarg line="-h ${header.dir}"/>
         </javac>
     </target>
 

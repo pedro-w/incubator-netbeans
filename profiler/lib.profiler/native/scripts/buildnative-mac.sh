@@ -18,7 +18,7 @@
 # under the License.
 
 jdk_home="$(/usr/libexec/java_home)"
-CPPFLAGS="-I $jdk_home/include -I $jdk_home/include/darwin -DLINUX "
+CPPFLAGS="-I $jdk_home/include -I $jdk_home/include/darwin -I../build -DLINUX "
 CFLAGS="$CPPFLAGS -mmacosx-version-min=10.4 -fpic -shared -O2"
       
 SOURCES="../src-jdk15/class_file_cache.c \
@@ -33,6 +33,6 @@ SOURCES="../src-jdk15/class_file_cache.c \
 
 DEST="../../release/lib/deployed/jdk16/mac/"
 
-cc $CPPFLAGS ../src-jdk15/config.c -o config && ./config > ../src-jdk15/config.h
+cc $CPPFLAGS ../src-jdk15/config.c -o ../build/config && ../build/config > ../build/config.h
 # TODO lipo!
-cc  $CFLAGS $SOURCES -o $DEST/libprofilerinterface.jnilib
+cc $CFLAGS $SOURCES -o $DEST/libprofilerinterface.jnilib
