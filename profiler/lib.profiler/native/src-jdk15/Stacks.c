@@ -31,9 +31,6 @@
 #include <sys/time.h>
 #include <fcntl.h>
 #include <time.h>
-#if __SIZEOF_POINTER__ == 8
-#define NEEDS_CONVERSION
-#endif
 #endif
 
 #ifdef SOLARIS
@@ -49,6 +46,7 @@
 
 #include "jni.h"
 #include "jvmti.h"
+#include "config.h"
 
 #include "org_netbeans_lib_profiler_server_system_Stacks.h"
 

@@ -17,10 +17,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-java_inc="$(/usr/libexec/java_home)/include"
-CFLAGS="-I $java_inc -I $java_inc/darwin \
-      -mmacosx-version-min=10.4 -DLINUX \
-      -fpic -shared -Os"
+jdk_home="$(/usr/libexec/java_home)"
+CPPFLAGS="-I $jdk_home/include -I $jdk_home/include/darwin -DLINUX "
+CFLAGS="$CPPFLAGS -mmacosx-version-min=10.4 -fpic -shared -O2"
       
 SOURCES="../src-jdk15/class_file_cache.c \
 	../src-jdk15/attach.c \
@@ -34,4 +33,6 @@ SOURCES="../src-jdk15/class_file_cache.c \
 
 DEST="../../release/lib/deployed/jdk16/mac/"
 
+cc $CPPFLAGS ../src-jdk15/config.c -o config && ./config > ../src-jdk15/config.h
+# TODO lipo!
 cc  $CFLAGS $SOURCES -o $DEST/libprofilerinterface.jnilib
