@@ -34,5 +34,7 @@ SOURCES="../src-jdk15/class_file_cache.c \
 DEST="../../release/lib/deployed/jdk16/mac/"
 
 cc $CPPFLAGS ../src-jdk15/config.c -o ../build/config && ../build/config > ../build/config.h
-# TODO lipo!
-cc $CFLAGS $SOURCES -o $DEST/libprofilerinterface.jnilib
+
+cc $CFLAGS $SOURCES -o ../build/libprofilerinterface.x86_64.dylib
+
+lipo $DEST/libprofilerinterface.jnilib -replace x86_64 ../build/libprofilerinterface.x86_64.dylib -output $DEST/libprofilerinterface.jnilib
