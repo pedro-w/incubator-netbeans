@@ -144,6 +144,8 @@ static void createTable()
     resize_threshold = entries_size * 3 / 4;
     ids = calloc(ids_size, sizeof(jmethodID));
     entries = calloc(entries_size, sizeof(struct entry));
+    // TMP: announce
+    fputs("*** PROFILER INTERFACE 200223\n", stderr);
 }
 static jint convert_jmethodID_to_jint(jmethodID jmethod)
 {
@@ -196,6 +198,11 @@ static jint convert_jmethodID_to_jint(jmethodID jmethod)
 static jmethodID convert_jint_to_jmethodID(jint method)
 {
     assert(ids);
+    // TMP
+    if (method < 0 || method >= id_count) {
+      fprintf(stderr, "*** PROFILER INTERFACE Error request for method %d which is not known\n*** only 0-%d are valid\n", method, id_count - 1);
+      return (jmethodID) 0;
+    }
     // fprintf(stderr, "*** Now unconvert %d to %p\n", method, ids[method]);
     return ids[method];
 }
