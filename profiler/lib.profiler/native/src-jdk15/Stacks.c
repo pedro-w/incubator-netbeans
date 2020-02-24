@@ -24,9 +24,6 @@
 
 #ifdef WIN32
 #include <Windows.h>
-#ifdef _WIN64
-#define NEEDS_CONVERSION
-#endif
 #else
 #include <sys/time.h>
 #include <fcntl.h>
