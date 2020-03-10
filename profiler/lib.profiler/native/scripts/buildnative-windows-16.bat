@@ -31,9 +31,18 @@ SET BUILD_DEPLOY=..\..\release\lib
 
 mkdir %BUILD_DEPLOY%\deployed\%JDK_DEPLOY%\%PLATFORM%
 
-rc /Fo .\version.res %BUILD_SRC_15%\windows\version.rc
+rc /Fo ..\build\version.res %BUILD_SRC_15%\windows\version.rc
 
-cl /I%BUILD_JDK%\include /I%BUILD_JDK%\include\win32 ^
+cl /Fe:..\build\ ^
+/I"%BUILD_JDK%\include\win32" ^
+/I"%BUILD_JDK%\include" ^
+"%BUILD_SRC_15%\config.c"
+
+..\build\config.exe > ..\build/config.h
+
+cl /I"%BUILD_JDK%\include" ^
+/I"%BUILD_JDK%\include\win32" ^
+/I"..\build" ^
 %BUILD_SRC_15%\class_file_cache.c ^
 %BUILD_SRC_15%\attach.c ^
 %BUILD_SRC_15%\Classes.c ^
@@ -43,10 +52,8 @@ cl /I%BUILD_JDK%\include /I%BUILD_JDK%\include\win32 ^
 %BUILD_SRC_15%\Threads.c ^
 %BUILD_SRC_15%\Stacks.c ^
 %BUILD_SRC_15%\common_functions.c ^
-version.res ^
+..\build\version.res ^
 /D WIN32 /D NDEBUG /LD /MD /O2 ^
 /Fe:%BUILD_DEPLOY%\deployed\%JDK_DEPLOY%\%PLATFORM%\profilerinterface.dll ^
 /Fm:%BUILD_DEPLOY%\deployed\%JDK_DEPLOY%\%PLATFORM%\profilerinterface.map ^
 /link /DYNAMICBASE
-
-del version.res
